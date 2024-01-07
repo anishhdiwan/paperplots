@@ -9,11 +9,19 @@ Ever felt like the tensorboard summary writer can do a bit more than just lettin
 - Automatically calculate simple convenience transforms such as rolling averages and shaded error regions
 
 [**Documentation**](Docs.md)
+[**pypi index**](https://pypi.org/project/paperplots/0.2.0/#description)
+
+# Install
+```
+pip install paperplots==0.2.0
+```
 
 # Examples
 
 ## Writing Logs
 ```
+from paperplots import Writer, Plotter
+
 writer = Writer(logdir=f'runs/algo', run_name=f'run1')
 
 for i in range(iter):

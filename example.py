@@ -26,8 +26,7 @@ num_episodes = 50
 num_runs = 5
 
 
-
-from paperplots.paperplots import Writer, Plotter
+from paperplots import Writer, Plotter
 
 ############################ WRITING DATA ############################
 
