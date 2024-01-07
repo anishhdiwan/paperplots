@@ -27,7 +27,7 @@ num_runs = 5
 
 
 
-from paperplots import Writer, Plotter
+from paperplots.paperplots import Writer, Plotter
 
 ############################ WRITING DATA ############################
 
@@ -66,9 +66,14 @@ for algo in ["DQN", "DQfD"]:
 plotter = Plotter(logdir='runs')
 
 # Plotting the first run by itself
-# plotter.plot_run(run_name="DQN/run0", rolling_avg=True, window_size=2, tags=["return"])
+plotter.plot_run(run_name="DQfD/run1", rolling_avg=True, window_size=2)
+
+# Compare two runs
+plotter.plot_run(run_name=["DQN/run0", "DQfD/run1"], rolling_avg=True, window_size=2, tags=["return"])
 
 # Plot an average over all runs in the experiment
-plotter.plot_experiment(exp_name="DQfD", rolling_avg=True, window_size=None, tags=["return", "loss"])
-	
+plotter.plot_experiment(exp_name="DQfD", rolling_avg=False, window_size=None, plot_error=False)
+
+# Compare two experiments
+plotter.plot_experiment(exp_name=["DQN", "DQfD"], rolling_avg=True, window_size=None, tags=["return"])
 	

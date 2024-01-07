@@ -6,10 +6,10 @@ import pickle
 import datetime
 import socket
 import os
-
+import random
 
 # https://sashamaps.net/docs/tools/20-colors/
-Colours = (
+Colours = [
 	'#800000',  # Maroon (99.99%)
 	'#4363d8',  # Blue (99.99%)
 	'#ffe119',  # Yellow (99.99%)
@@ -32,29 +32,54 @@ Colours = (
 	#'#a9a9a9',
 	#'#ffffff',
 	#'#000000'
-)
+]
 
 
+def make_single_plot(data, colours=None, plot_error=False, num_stdev=1):
+		fig, ax = plt.subplots(figsize=(6, 4))	
+		ax.plot(data[1], data[0], label=data[4], color=colours[0], linewidth=2)
 
-def make_plot(data, colours=None, plot_error=False, error=None, num_stdev=1):
+		if plot_error:
+			ax.fill_between(data[1], data[0]-num_stdev*data[5], data[0]+num_stdev*data[5], alpha=0.2, edgecolor=colours[0], facecolor=colours[0])
 
-	fig, ax = plt.subplots(figsize=(6, 4))
-	ax.plot(data[1], data[0], label=data[4], color=colours[0], linewidth=2)
+		ax.legend()
+		# Adding labels and title
+		ax.set_xlabel(data[3])
+		ax.set_title(data[2])
 
-	if plot_error:
-		ax.fill_between(data[1], data[0]-num_stdev*error, data[0]+num_stdev*error, alpha=0.2, edgecolor=colours[0], facecolor=colours[0])
+		# Setting white background
+		ax.set_facecolor('white')
+		ax.grid()
 
-	ax.legend()
-	# Adding labels and title
-	ax.set_xlabel(data[3])
-	ax.set_title(data[2])
+		# Show the plot
+		plt.show()
 
-	# Setting white background
-	ax.set_facecolor('white')
-	ax.grid()
+def make_plot(data, colours=None, plot_error=False, num_stdev=1):
+	
+	if isinstance(data, list):
+		tags = list(data[0].keys())
 
-	# Show the plot
-	plt.show()
+		for tag in tags:
+			fig, ax = plt.subplots(figsize=(6, 4))
+			
+			for idx, data_dict in enumerate(data):
+				ax.plot(data_dict[tag][1], data_dict[tag][0], label=data_dict[tag][4], color=colours[idx], linewidth=2)
+
+				if plot_error:
+					ax.fill_between(data_dict[tag][1], data_dict[tag][0]-num_stdev*data_dict[tag][5], data_dict[tag][0]+num_stdev*data_dict[tag][5], alpha=0.2, edgecolor=colours[idx], facecolor=colours[idx])
+
+			ax.legend()
+			# Adding labels and title
+			ax.set_xlabel(data_dict[tag][3])
+			ax.set_title(data_dict[tag][2])
+
+			# Setting white background
+			ax.set_facecolor('white')
+			ax.grid()
+
+			# Show the plot
+			plt.show()
+
 
 
 def rolling_average(x, w=None):
@@ -78,11 +103,12 @@ def rolling_average(x, w=None):
 
 
 class Writer():
-	"""
-	Writes scalars as a pickle file within the given directory
+	"""Writes scalars as a pickle file within the given directory
 
 	Args:
-		logdir (str): name of the logging directory. Default: "runs/"
+		logdir (str): name of the logging directory that houses runs. Default: "runs/"
+		run_name (str): Name of the run
+
 	"""
 	def __init__(self, logdir=f'runs/{datetime.datetime.now()}_{socket.gethostname()}', run_name=None):
 		self.chunk_size = 1000
@@ -131,22 +157,45 @@ class Writer():
 
 
 class Plotter():
-	"""
-	Writer class
+	"""Plots runs or experiments
+
+	Args:
+		logdir (str): name of the logging directory that houses experiments. Default: "runs/"
+
 	"""
 	def __init__(self, logdir='runs'):
 		self.logdir = logdir
 		self.colours = Colours
+		random.shuffle(self.colours)
 
 
-	def plot_run(self, run_name=None, run_path=None, tags=None, rolling_avg=False, window_size=None):
-		""" Plot a run either with the logdir/run_name or plot a run with the direct run path """
-		assert (run_name==None and run_path!=None) or (run_name!=None and run_path==None), "Please provide either a run name or a run path. Not both!"
+	def plot_run(self, run_name, tags=None, rolling_avg=False, window_size=None):
+		if isinstance(run_name, str):
+			self.parse_run(run_name=run_name, tags=tags, rolling_avg=rolling_avg, window_size=window_size, compare=False)
+		elif isinstance(run_name, list):
+			compare = []
+			for run in run_name:
+				compare.append(self.parse_run(run_name=run, tags=tags, rolling_avg=rolling_avg, window_size=window_size, compare=True))
 
+			make_plot(compare, colours=self.colours)
+
+
+	def plot_experiment(self, exp_name, tags=None, rolling_avg=False, window_size=None, plot_error=True):
+		if isinstance(exp_name, str):
+			self.parse_experiment(exp_name=exp_name, tags=tags, rolling_avg=rolling_avg, window_size=window_size, plot_error=plot_error, compare=False)
+		elif isinstance(exp_name, list):
+			compare = []
+			for exp in exp_name:
+				compare.append(self.parse_experiment(exp_name=exp, tags=tags, rolling_avg=rolling_avg, window_size=window_size, plot_error=plot_error, compare=True))
+
+			make_plot(compare, colours=self.colours, plot_error=True)
+
+
+
+	def parse_run(self, run_name=None, run_path=None, tags=None, rolling_avg=False, window_size=None, compare=False):
+		""" Plot a run """
 		if run_name != None:
 			filepath = f'{self.logdir}/{run_name}.pkl'
-		elif run_path != None:
-			filepath = run_path
 	
 		with open(filepath, 'rb') as handle:
 			data = pickle.load(handle)			
@@ -159,11 +208,15 @@ class Plotter():
 			for tag in tags:
 				data[tag][0] = rolling_average(data[tag][0], window_size)
 
-		for tag in tags:
-			make_plot(data[tag], colours=self.colours)
+		if compare:
+			data = {tag: data[tag] for tag in tags}
+			return data
+		else:
+			for tag in tags:
+				make_single_plot(data[tag], colours=self.colours)
 
 
-	def plot_experiment(self, exp_name, tags=None, rolling_avg=False, window_size=None):
+	def parse_experiment(self, exp_name, tags=None, rolling_avg=False, window_size=None, plot_error=True, compare=False):
 		""" Plot average data from an experiment. Plots all tags separately """
 		# self.logdir must be a folder with a bunch of experiments
 		# exp name must be a folder with a bunch of actual runs
@@ -204,6 +257,7 @@ class Plotter():
 
 			data[tag] = [y_array, x_array, data[tag][0][2], data[tag][0][3], data[tag][0][4]]
 
+
 		# Compute means (convert 2D array back to 1D)
 		for tag in tags:
 			error = np.std(data[tag][0], axis=0)
@@ -218,8 +272,11 @@ class Plotter():
 				# Rolling average also for the standard deviation
 				data[tag][5] = rolling_average(data[tag][5], window_size)
 
-
-		for tag in tags:
-			# Plotting
-			make_plot(data[tag], colours=self.colours, plot_error=True, error=error)
+		if compare:
+			data_dict = {tag: data[tag] for tag in tags}
+			return data_dict
+		else:
+			for tag in tags:
+				# Plotting
+				make_single_plot(data[tag], colours=self.colours, plot_error=plot_error)
 
