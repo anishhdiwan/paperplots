@@ -51,8 +51,8 @@ for algo in ["DQN", "DQfD"]:
 
 			# Writing to the runs/ folder
 			# add_scalar(tag="str tag", scalar_value="y axis value", global_step="x axis step", ylabel="something", xlabel="something")
-			writer.add_scalar(f"{algo}_return", reward, i_episode, ylabel="episode return", xlabel="num episodes", name=f"{algo}")
-			writer.add_scalar(f"{algo}_loss", loss, i_episode, ylabel="loss", xlabel="num episodes", name=f"{algo}")
+			writer.add_scalar(f"return", reward, i_episode, ylabel="episode return", xlabel="num episodes", name=f"{algo}")
+			writer.add_scalar(f"loss", loss, i_episode, ylabel="loss", xlabel="num episodes", name=f"{algo}")
 
 		# write.close() is necessary to save your data!!
 		writer.close()
@@ -66,10 +66,9 @@ for algo in ["DQN", "DQfD"]:
 plotter = Plotter(logdir='runs/DQN')
 
 # Plotting the first run by itself
-plotter.plot_run(run_name="run0")
+# plotter.plot_run(run_name="run0", rolling_avg=True, window_size=2, tags=["return"])
 
-
-# # Loadng saved data and plotting 
-# for i_run in range(num_runs):
+# Plot an average over all runs in the experiment
+plotter.plot_experiment()
 	
 	

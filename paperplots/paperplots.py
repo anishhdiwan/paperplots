@@ -10,36 +10,39 @@ import os
 
 # https://sashamaps.net/docs/tools/20-colors/
 Colours = (
-    '#800000',  # Maroon (99.99%)
-    '#4363d8',  # Blue (99.99%)
-    '#ffe119',  # Yellow (99.99%)
-    '#e6beff',  # Lavender (99.99%)
-    '#f58231',  # Orange (99.99%)
-    '#3cb44b',  # Green (99%)
-    '#000075',  # Navy (99.99%)
-    '#e6194b',  # Red (99%)
-    '#46f0f0',  # Cyan (99%)
-    '#f032e6',  # Magenta (99%)
-    '#9a6324',  # Brown (99%)
-    '#008080',  # Teal (99%)
-    '#911eb4',  # Purple (95%*)
-    '#aaffc3',  # Mint (99%)
-    '#ffd8b1',  # Apiroct (95%)
-    '#bcf60c',  # Lime (95%)
-    '#fabed4',  # Pink (99%)
-    '#808000',  # Olive (95%)
-    '#fffac8',  # Beige (99%)
-    #'#a9a9a9',
-    #'#ffffff',
-    #'#000000'
+	'#800000',  # Maroon (99.99%)
+	'#4363d8',  # Blue (99.99%)
+	'#ffe119',  # Yellow (99.99%)
+	'#e6beff',  # Lavender (99.99%)
+	'#f58231',  # Orange (99.99%)
+	'#3cb44b',  # Green (99%)
+	'#000075',  # Navy (99.99%)
+	'#e6194b',  # Red (99%)
+	'#46f0f0',  # Cyan (99%)
+	'#f032e6',  # Magenta (99%)
+	'#9a6324',  # Brown (99%)
+	'#008080',  # Teal (99%)
+	'#911eb4',  # Purple (95%*)
+	'#aaffc3',  # Mint (99%)
+	'#ffd8b1',  # Apiroct (95%)
+	'#bcf60c',  # Lime (95%)
+	'#fabed4',  # Pink (99%)
+	'#808000',  # Olive (95%)
+	'#fffac8',  # Beige (99%)
+	#'#a9a9a9',
+	#'#ffffff',
+	#'#000000'
 )
 
 
 
-def make_plot(data, colours=None):
+def make_plot(data, colours=None, plot_error=False, error=None, num_stdev=1):
 
 	fig, ax = plt.subplots(figsize=(6, 4))
 	ax.plot(data[1], data[0], label=data[4], color=colours[0], linewidth=2)
+
+	if plot_error:
+		ax.fill_between(data[1], data[0]-num_stdev*error, data[0]+num_stdev*error, alpha=0.2, edgecolor=colours[0], facecolor=colours[0])
 
 	ax.legend()
 	# Adding labels and title
@@ -52,6 +55,22 @@ def make_plot(data, colours=None):
 
 	# Show the plot
 	plt.show()
+
+
+def rolling_average(x, w):
+	assert w < len(x), "rolling average window must not be larger than the size of the array"
+
+	# Compute a rolling average with minimal border effects
+	out = np.convolve(x, np.ones(w), 'valid') / w
+	overlap = len(x) - len(out)
+
+	# Insert the computed array in the middle of the original array
+	if overlap%2 == 0:
+		x[int(overlap/2):int(-overlap/2)] = out
+	else:
+		x[int(overlap/2 - 0.5):-int(overlap/2 + 0.5)] = out
+
+	return x
 
 
 class Writer():
@@ -111,12 +130,12 @@ class Plotter():
 	"""
 	Writer class
 	"""
-	def __init__(self, logdir=f'runs/'):
+	def __init__(self, logdir='runs'):
 		self.logdir = logdir
 		self.colours = Colours
 
 
-	def plot_run(self, run_name=None, run_path=None, tags=None):
+	def plot_run(self, run_name=None, run_path=None, tags=None, rolling_avg=False, window_size=10):
 		""" Plot a run either with the logdir/run_name or plot a run with the direct run path """
 		assert (run_name==None and run_path!=None) or (run_name!=None and run_path==None), "Please provide either a run name or a run path. Not both!"
 
@@ -126,18 +145,62 @@ class Plotter():
 			filepath = run_path
 	
 		with open(filepath, 'rb') as handle:
-			data = pickle.load(handle)
+			data = pickle.load(handle)			
 
 		# If no tags are given, plot all the data
 		if tags == None:
 			tags = list(data.keys())
 
+		if rolling_avg:
+			for tag in tags:
+				data[tag][0] = rolling_average(data[tag][0], window_size)
+
 		for tag in tags:
 			make_plot(data[tag], colours=self.colours)
 
 
+	def plot_experiment(self):
+		""" Plot average data from an experiment. Plots all tags separately """
+		# self.logdir must be a folder with a bunch of pkl files of the same experiment
 
-	# def plot_experiment(self):
+		# List all runs in the directory
+		runs = [f for f in os.listdir(self.logdir) if os.path.isfile(os.path.join(self.logdir, f))]
 
-	# def compare_experiments(self):
+		# Unpack all runs (data is a dict with keys as tags and values as lists of tag values [y,x,ylab,xlab,name])
+		data = {}
+		for run in runs:
+			filepath = f"{self.logdir}/{run}"
+			with open(filepath, 'rb') as handle:
+				run_data = pickle.load(handle)
+
+			for tag in list(run_data.keys()):
+				# If tag is not previously seen, make a new one
+				if not tag in list(data.keys()):
+					data[tag] = [run_data[tag]]
+
+				# If tag is already seen, append to that tag
+				data[tag].append(run_data[tag])
+
+
+		# Convert the values in the data dict to be 2D arrays. Now data dict values are [2D y,2D x,ylab,xlab,name]
+		for tag in list(data.keys()):
+			num_runs = len(data[tag])
+			# assuming that all runs have the same length of time series data
+			y_array = np.zeros((num_runs, len(data[tag][0][0])))
+			x_array = np.zeros((num_runs, len(data[tag][0][1])))
+			
+			for i in range(num_runs):
+				y_array[i] = data[tag][i][0]
+				x_array[i] = data[tag][i][1]
+
+			data[tag] = [y_array, x_array, data[tag][0][2], data[tag][0][3], data[tag][0][4]]
+
+		# Compute means (convert 2D array back to 1D)
+		for tag in list(data.keys()):
+			error = np.std(data[tag][0], axis=0)
+			data[tag][0] = np.mean(data[tag][0], axis=0)
+			data[tag][1] = np.mean(data[tag][1], axis=0)
+
+			# Plotting
+			make_plot(data[tag], colours=self.colours, plot_error=True, error=error)
 
