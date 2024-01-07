@@ -63,12 +63,12 @@ for algo in ["DQN", "DQfD"]:
 
 
 # Instantiating the plotter object.
-plotter = Plotter(logdir='runs/DQN')
+plotter = Plotter(logdir='runs')
 
 # Plotting the first run by itself
-# plotter.plot_run(run_name="run0", rolling_avg=True, window_size=2, tags=["return"])
+# plotter.plot_run(run_name="DQN/run0", rolling_avg=True, window_size=2, tags=["return"])
 
 # Plot an average over all runs in the experiment
-plotter.plot_experiment()
+plotter.plot_experiment(exp_name="DQfD", rolling_avg=True, window_size=None, tags=["return", "loss"])
 	
 	

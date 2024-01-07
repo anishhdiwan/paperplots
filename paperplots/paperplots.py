@@ -57,7 +57,11 @@ def make_plot(data, colours=None, plot_error=False, error=None, num_stdev=1):
 	plt.show()
 
 
-def rolling_average(x, w):
+def rolling_average(x, w=None):
+	# Default window size = 10%
+	if w == None:
+		w = int(0.1 * len(x))
+
 	assert w < len(x), "rolling average window must not be larger than the size of the array"
 
 	# Compute a rolling average with minimal border effects
@@ -135,7 +139,7 @@ class Plotter():
 		self.colours = Colours
 
 
-	def plot_run(self, run_name=None, run_path=None, tags=None, rolling_avg=False, window_size=10):
+	def plot_run(self, run_name=None, run_path=None, tags=None, rolling_avg=False, window_size=None):
 		""" Plot a run either with the logdir/run_name or plot a run with the direct run path """
 		assert (run_name==None and run_path!=None) or (run_name!=None and run_path==None), "Please provide either a run name or a run path. Not both!"
 
@@ -159,17 +163,18 @@ class Plotter():
 			make_plot(data[tag], colours=self.colours)
 
 
-	def plot_experiment(self):
+	def plot_experiment(self, exp_name, tags=None, rolling_avg=False, window_size=None):
 		""" Plot average data from an experiment. Plots all tags separately """
-		# self.logdir must be a folder with a bunch of pkl files of the same experiment
+		# self.logdir must be a folder with a bunch of experiments
+		# exp name must be a folder with a bunch of actual runs
 
 		# List all runs in the directory
-		runs = [f for f in os.listdir(self.logdir) if os.path.isfile(os.path.join(self.logdir, f))]
+		runs = [f for f in os.listdir(f"{self.logdir}/{exp_name}") if os.path.isfile(os.path.join(self.logdir, exp_name, f))]
 
 		# Unpack all runs (data is a dict with keys as tags and values as lists of tag values [y,x,ylab,xlab,name])
 		data = {}
 		for run in runs:
-			filepath = f"{self.logdir}/{run}"
+			filepath = f"{self.logdir}/{exp_name}/{run}"
 			with open(filepath, 'rb') as handle:
 				run_data = pickle.load(handle)
 
@@ -182,8 +187,12 @@ class Plotter():
 				data[tag].append(run_data[tag])
 
 
+		# If no tags are given, plot all the data
+		if tags == None:
+			tags = list(data.keys())
+
 		# Convert the values in the data dict to be 2D arrays. Now data dict values are [2D y,2D x,ylab,xlab,name]
-		for tag in list(data.keys()):
+		for tag in tags:
 			num_runs = len(data[tag])
 			# assuming that all runs have the same length of time series data
 			y_array = np.zeros((num_runs, len(data[tag][0][0])))
@@ -196,11 +205,21 @@ class Plotter():
 			data[tag] = [y_array, x_array, data[tag][0][2], data[tag][0][3], data[tag][0][4]]
 
 		# Compute means (convert 2D array back to 1D)
-		for tag in list(data.keys()):
+		for tag in tags:
 			error = np.std(data[tag][0], axis=0)
+			data[tag].append(error)
 			data[tag][0] = np.mean(data[tag][0], axis=0)
 			data[tag][1] = np.mean(data[tag][1], axis=0)
 
+		# Compute rolling average
+		if rolling_avg:
+			for tag in tags:
+				data[tag][0] = rolling_average(data[tag][0], window_size)
+				# Rolling average also for the standard deviation
+				data[tag][5] = rolling_average(data[tag][5], window_size)
+
+
+		for tag in tags:
 			# Plotting
 			make_plot(data[tag], colours=self.colours, plot_error=True, error=error)
 
